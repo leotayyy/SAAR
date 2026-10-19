@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Customizador de bucales 3D</title>
+<style>
+:root{--bg:#0b0d10;--panel:#14171c;--text:#f2f4f7;--muted:#8a93a1;--line:#242a33;--accent:#f0523a;--accent-t:#ffffff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101216;--panel:#1a1d23;--text:#f1f3f5;--muted:#9aa3b0;--line:#2b3038}}
+:root[data-theme="dark"]{--bg:#101216;--panel:#1a1d23;--text:#f1f3f5;--muted:#9aa3b0;--line:#2b3038}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column}
+#root{display:flex;flex-direction:column;height:100%;min-height:0}
+header{padding:10px 14px 4px}
+h1{font-size:17px;margin:0;letter-spacing:.3px}
+header p{margin:2px 0 0;font-size:12px;color:var(--muted)}
+.stage{flex:1;min-height:240px;position:relative;touch-action:none;cursor:grab}
+.stage canvas{display:block;width:100%;height:100%}
+.hint{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:11px;color:var(--muted);pointer-events:none}
+.panel{background:var(--panel);border-top:1px solid var(--line);padding:12px 14px 14px;max-height:44vh;overflow-y:auto}
+.row{margin-bottom:12px}
+.lbl{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.sw{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sw button.c{width:30px;height:30px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0}
+.sw button.c.on{border-color:var(--text)}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{flex:1;padding:9px;border:0;background:transparent;color:var(--text);font-size:14px;cursor:pointer}
+.seg button.on{background:var(--accent);color:var(--accent-t)}
+.ic{display:flex;gap:6px;flex-wrap:wrap}
+.ic button{font-size:22px;width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:transparent;cursor:pointer}
+.txt{display:flex;gap:6px}
+.txt input[type=text]{flex:1;min-width:0;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:15px}
+.txt input[type=color]{width:44px;height:42px;border:1px solid var(--line);border-radius:10px;background:transparent;padding:2px}
+.btn{padding:10px 14px;border-radius:10px;border:0;background:var(--accent);color:var(--accent-t);font-weight:600;font-size:14px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.chip{padding:6px 10px;border-radius:99px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:13px;cursor:pointer}
+.chip.on{border-color:var(--accent);background:var(--accent);color:var(--accent-t)}
+label.s{display:flex;align-items:center;gap:10px;font-size:13px;margin-bottom:6px}
+label.s span{width:60px;color:var(--muted)}
+label.s input{flex:1}
+h1{font-size:22px;letter-spacing:1.5px;font-weight:800}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-right:8px}
+.tabs{display:flex;border-bottom:1px solid var(--line);margin:-4px -14px 12px;padding:0 14px}
+.tabs button{flex:1;padding:10px 4px;background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);font-size:14px;cursor:pointer}
+.tabs button.on{color:var(--text);border-color:var(--accent)}
+.views{display:flex;gap:6px;overflow-x:auto;padding:8px 14px}
+.views button{flex:none;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:12px;cursor:pointer}
+.views button.on{border-color:var(--accent);color:var(--accent)}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const {useState,useEffect,useRef}=React;const h=React.createElement;
+const COLORS=['#e11d48','#2563eb','#16a34a','#f59e0b','#111827','#f8fafc','#9333ea','#06b6d4'];
+const ICONS=['🥊','🔥','⚡','💀','👑','🦅','🐺','⭐'];
+
+function buildGuard(k){
+  const N=170,M=48,pos=[],idxA=[],idxB=[],idxP=[],caps={};
+  const P=[[0,-.2],[.22,-.2],[.36,-.16],[.43,-.05],[.44,.12],[.43,.3],[.4,.42],[.34,.46],[.27,.43],[.245,.3],[.23,.14],[.15,.04],[0,0],[-.15,.04],[-.22,.12],[-.24,.24],[-.26,.34],[-.31,.38],[-.37,.34],[-.4,.22],[-.42,.05],[-.4,-.1],[-.31,-.18],[-.16,-.2]].map(p=>new THREE.Vector3(p[0]*k,p[1]*k,0));
+  const cur=new THREE.CatmullRomCurve3(P,true,'centripetal'),prof=[];
+  for(let j=0;j<M;j++)prof.push(cur.getPoint(j/M));
+  const cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const W=1.2,F=1.0,LEG=1.35,NN=2400,A=Math.PI/2+LEG,dense=[];
+  for(let q=0;q<=NN;q++){
+    const a=-A+2*A*q/NN,sg=a<0?-1:1,aa=Math.abs(a);
+    if(aa<=Math.PI/2)dense.push([sg*W*Math.pow(Math.sin(aa),0.77),F*Math.pow(Math.cos(aa),0.77)]);
+    else{const d=aa-Math.PI/2;dense.push([sg*W*(1+0.04*d),-d]);}
+  }
+  const Ls=[0];
+  for(let q=1;q<=NN;q++)Ls.push(Ls[q-1]+Math.hypot(dense[q][0]-dense[q-1][0],dense[q][1]-dense[q-1][1]));
+  const tot=Ls[NN],path=[];let qq=0;
+  for(let i=0;i<=N;i++){
+    const s0=tot*i/N;while(qq<NN-1&&Ls[qq+1]<s0)qq++;
+    const f=(s0-Ls[qq])/((Ls[qq+1]-Ls[qq])||1);
+    path.push([dense[qq][0]+(dense[qq+1][0]-dense[qq][0])*f,dense[qq][1]+(dense[qq+1][1]-dense[qq][1])*f]);
+  }
+  for(let i=0;i<=N;i++){
+    const pa=path[Math.max(i-1,0)],pb=path[Math.min(i+1,N)];
+    let tx=pb[0]-pa[0],tz=pb[1]-pa[1];const tl=Math.hypot(tx,tz);tx/=tl;tz/=tl;
+    const rx=-tz,rz=tx,px=path[i][0],pz=path[i][1];
+    const a=tot*i/N-tot/2,aa=Math.abs(a),e=cl((aa-(tot/2-0.6))/0.6,0,1),s=e*e*(3-2*e),front=cl((1.9-aa)/0.4,0,1),nt=Math.exp(-Math.pow(a/0.13,2));
+    const pts=[];
+    for(let j=0;j<M;j++){
+      let r=prof[j].x,y=prof[j].y;
+      const rk=r/k,yk=y/k,w=cl((rk-0.34)/0.08,0,1),tw=rk>0.1?cl((yk-0.3)/0.12,0,1):0;
+      r+=0.012*k*w*front*(0.5+0.5*Math.cos(a*20));
+      y+=0.03*k*tw*front*Math.cos(a*20)-0.22*k*nt*tw;
+      r*=1-0.1*s;if(y>0)y*=1-0.15*s;
+      pts.push([r,y]);
+      pos.push(px+rx*r,y*1.6,pz+0.18+rz*r);
+    }
+    if(i===0||i===N)caps[i]=pts;
+  }
+  for(let i=0;i<N;i++)for(let j=0;j<M;j++){
+    const a=i*M+j,b=(i+1)*M+j,c=(i+1)*M+(j+1)%M,d=i*M+(j+1)%M;
+    (j>=17&&j<=32?idxB:idxA).push(a,b,c,a,c,d);if(j>=5&&j<=17)idxP.push(a,b,c,a,c,d);
+  }
+  [0,N].forEach(i=>{
+    const base=pos.length/3;
+    const tri=THREE.ShapeUtils.triangulateShape(caps[i].map(p=>new THREE.Vector2(p[0],p[1])),[]);
+    for(let j=0;j<M;j++){const q=(i*M+j)*3;pos.push(pos[q],pos[q+1],pos[q+2]);}
+    tri.forEach(t=>idxA.push(base+t[0],base+t[1],base+t[2]));
+  });
+  const idx=idxA.concat(idxB);
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setIndex(idx);g.addGroup(0,idxA.length,0);g.addGroup(idxA.length,idxB.length,1);g.computeVertexNormals();
+  const nm=g.getAttribute('normal'),keep=[];
+  for(let q=0;q<idxP.length;q+=3){if((nm.getZ(idxP[q])+nm.getZ(idxP[q+1])+nm.getZ(idxP[q+2]))/3>0.35)keep.push(idxP[q],idxP[q+1],idxP[q+2]);}
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+  keep.forEach(v=>{const X=pos[v*3],Y=pos[v*3+1];if(X<x0)x0=X;if(X>x1)x1=X;if(Y<y0)y0=Y;if(Y>y1)y1=Y;});
+  const uv=[];for(let v=0;v<pos.length/3;v++)uv.push((pos[v*3]-x0)/(x1-x0||1),(pos[v*3+1]-y0)/(y1-y0||1));
+  const pg=new THREE.BufferGeometry();
+  pg.setAttribute('position',g.getAttribute('position'));pg.setAttribute('normal',nm);
+  pg.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));pg.setIndex(keep);
+  g.userData.pg=pg;return g;
+}
+
+function makeTexture(kind,value,color){
+  const cv=document.createElement('canvas');let ctx,aspect=1;
+  if(kind==='image'){
+    const sc=Math.min(1,512/Math.max(value.width,value.height));
+    cv.width=Math.max(1,Math.round(value.width*sc));cv.height=Math.max(1,Math.round(value.height*sc));
+    ctx=cv.getContext('2d');ctx.drawImage(value,0,0,cv.width,cv.height);aspect=cv.height/cv.width;
+  }else if(kind==='icon'){cv.width=cv.height=256;ctx=cv.getContext('2d');ctx.font='190px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(value,128,140);}
+  else{
+    cv.width=512;cv.height=192;aspect=192/512;ctx=cv.getContext('2d');
+    let fs=130;const f=()=>'900 '+fs+'px Impact, "Arial Black", sans-serif';
+    ctx.font=f();while(ctx.measureText(value).width>470&&fs>20){fs-=4;ctx.font=f();}
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineJoin='round';ctx.lineWidth=Math.max(6,fs/9);
+    ctx.strokeStyle='rgba(0,0,0,.65)';ctx.strokeText(value,256,100);ctx.fillStyle=color;ctx.fillText(value,256,100);
+  }
+  const t=new THREE.CanvasTexture(cv);t.anisotropy=4;return {t,aspect};
+}
+
+function App(){
+  const host=useRef(null),api=useRef(null);
+  const [color,setColor]=useState('#f8fafc');
+  const [type,setType]=useState('boxeo');
+  const [text,setText]=useState('');
+  const [tcolor,setTcolor]=useState('#ffffff');
+  const [decals,setDecals]=useState([]);
+  const [sel,setSel]=useState(null);
+  const [tab,setTab]=useState('Color');
+  const [auto,setAuto]=useState(false);
+  const [print,setPrint]=useState({on:false,s:1,ox:0,oy:0});
+
+  useEffect(()=>{
+    const el=host.current;
+    const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+    el.appendChild(renderer.domElement);
+    const scene=new THREE.Scene();
+    const camera=new THREE.PerspectiveCamera(40,1,0.1,50);
+    camera.position.set(0,3,5.8);
+    const controls=new THREE.OrbitControls(camera,renderer.domElement);
+    controls.enableDamping=true;controls.enablePan=false;controls.minDistance=2.5;controls.maxDistance=8;
+    scene.add(new THREE.HemisphereLight(0xffffff,0x556070,0.85));
+    const d1=new THREE.DirectionalLight(0xffffff,0.9);d1.position.set(3,5,4);scene.add(d1);
+    const d2=new THREE.DirectionalLight(0xbcd0ff,0.5);d2.position.set(-4,2,-3);scene.add(d2);
+    const mat=new THREE.MeshPhysicalMaterial({color:'#f8fafc',roughness:0.4,clearcoat:0.6,clearcoatRoughness:0.25,side:THREE.DoubleSide});
+    const mat2=new THREE.MeshPhysicalMaterial({color:'#f8fafc',roughness:0.4,clearcoat:0.6,clearcoatRoughness:0.25,side:THREE.DoubleSide});
+    let guard=new THREE.Mesh(buildGuard(1),[mat,mat2]);scene.add(guard);
+    const pmat=new THREE.MeshStandardMaterial({roughness:0.4,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
+    const pm=new THREE.Mesh(guard.geometry.userData.pg,pmat);pm.visible=false;pm.renderOrder=1;scene.add(pm);
+    const items=[];let drag=null,nid=1;
+    const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();
+    const setRay=e=>{const r=renderer.domElement.getBoundingClientRect();ndc.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(ndc,camera);};
+    const apply=d=>{
+      d.mesh.position.copy(d.p).addScaledVector(d.n,0.015);
+      d.mesh.lookAt(d.p.clone().add(d.n));d.mesh.rotateZ(d.spin);
+    };
+    const place=(d,p,n)=>{d.p=p.clone();d.n=n.clone().normalize();apply(d);};
+
+    const onDown=e=>{
+      setRay(e);const hit=ray.intersectObjects(items.map(i=>i.mesh))[0];
+      if(hit){drag=items.find(i=>i.mesh===hit.object);controls.enabled=false;renderer.domElement.setPointerCapture(e.pointerId);setSel(drag.id);}
+    };
+    const onMove=e=>{
+      if(!drag)return;setRay(e);const hit=ray.intersectObject(guard)[0];
+      if(hit)place(drag,hit.point,hit.face.normal);
+    };
+    const onUp=()=>{drag=null;controls.enabled=true;};
+    const cv=renderer.domElement;
+    cv.addEventListener('pointerdown',onDown);cv.addEventListener('pointermove',onMove);
+    cv.addEventListener('pointerup',onUp);cv.addEventListener('pointercancel',onUp);
+
+    const resize=()=>{
+      const w=el.clientWidth,hh=el.clientHeight;if(!w||!hh)return;
+      renderer.setSize(w,hh,false);camera.aspect=w/hh;camera.updateProjectionMatrix();
+    };
+    const ro=new ResizeObserver(resize);ro.observe(el);resize();
+
+    let raf;const loop=()=>{raf=requestAnimationFrame(loop);controls.update();renderer.render(scene,camera);};loop();
+
+    api.current={
+      setColor:c=>{mat.color.set(c);mat2.color.set(c);},
+      setType:t=>{
+        guard.geometry.dispose();guard.geometry=buildGuard(t==='mma'?1.25:1);pm.geometry=guard.geometry.userData.pg;
+        items.forEach(d=>{
+          ray.set(d.p.clone().addScaledVector(d.n,2),d.n.clone().negate());
+          const hit=ray.intersectObject(guard)[0];if(hit)place(d,hit.point,hit.face.normal);
+        });
+      },
+      add:(kind,value,col)=>{
+        const {t,aspect}=makeTexture(kind,value,col);
+        const m=new THREE.Mesh(new THREE.PlaneGeometry(1,aspect),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,side:THREE.DoubleSide}));
+        m.renderOrder=2;scene.add(m);
+        const d={id:nid++,mesh:m,spin:0,size:0.5,label:kind==='icon'?value:kind==='image'?'Imagen '+(nid-1):value.slice(0,10)};
+        m.scale.set(d.size,d.size,1);
+        let hit=null;
+        ray.setFromCamera(new THREE.Vector2(0,0),camera);hit=ray.intersectObject(guard)[0];
+        if(!hit){ray.set(camera.position,new THREE.Vector3(0,0.15,1.3).sub(camera.position).normalize());hit=ray.intersectObject(guard)[0];}
+        if(hit)place(d,hit.point,hit.face.normal);else place(d,new THREE.Vector3(0,0.3,1),new THREE.Vector3(0,1,0));
+        items.push(d);return {id:d.id,label:d.label,size:d.size,spin:0};
+      },
+      update:(id,v)=>{
+        const d=items.find(i=>i.id===id);if(!d)return;
+        if(v.size!==undefined){d.size=v.size;d.mesh.scale.set(v.size,v.size,1);}
+        if(v.spin!==undefined){d.spin=v.spin;apply(d);}
+      },
+      remove:id=>{
+        const k=items.findIndex(i=>i.id===id);if(k<0)return;
+        scene.remove(items[k].mesh);items[k].mesh.material.map.dispose();items.splice(k,1);
+      },
+      reset:()=>{camera.position.set(0,3,5.8);controls.target.set(0,0,0);controls.autoRotate=false;},
+      view:a=>{controls.autoRotate=false;camera.position.set(Math.sin(a)*5.4,2.6,Math.cos(a)*5.4);controls.target.set(0,0,0);},
+      auto:b=>{controls.autoRotate=b;controls.autoRotateSpeed=2.5;},
+      zoom:f=>{camera.position.multiplyScalar(f);},
+      print:img=>{
+        const sc=Math.min(1,1024/Math.max(img.width,img.height)),w=Math.round(img.width*sc),hh=Math.round(img.height*sc);
+        const c=document.createElement('canvas');c.width=w;c.height=hh;const x=c.getContext('2d');x.drawImage(img,0,0,w,hh);
+        const id=x.getImageData(0,0,w,hh),d=id.data,seen=new Uint8Array(w*hh),st=[];
+        const bg=p=>d[p*4+3]<20||(d[p*4]>235&&d[p*4+1]>235&&d[p*4+2]>235);
+        const push=p=>{if(!seen[p]&&bg(p)){seen[p]=1;st.push(p);}};
+        for(let i=0;i<w;i++){push(i);push((hh-1)*w+i);}
+        for(let j=0;j<hh;j++){push(j*w);push(j*w+w-1);}
+        while(st.length){const p=st.pop(),px=p%w,py=(p-px)/w;d[p*4+3]=0;if(px>0)push(p-1);if(px<w-1)push(p+1);if(py>0)push(p-w);if(py<hh-1)push(p+w);}
+        let x0=w,y0=hh,x1=0,y1=0;
+        for(let p=0;p<w*hh;p++)if(d[p*4+3]>20){const px=p%w,py=(p-px)/w;if(px<x0)x0=px;if(px>x1)x1=px;if(py<y0)y0=py;if(py>y1)y1=py;}
+        if(x1<=x0||y1<=y0){x0=0;y0=0;x1=w-1;y1=hh-1;}
+        x.putImageData(id,0,0);
+        const cw=x1-x0+1,ch=y1-y0+1,o=document.createElement('canvas');o.width=cw+8;o.height=ch+8;
+        o.getContext('2d').drawImage(c,x0,y0,cw,ch,4,4,cw,ch);
+        if(pmat.map)pmat.map.dispose();
+        const t=new THREE.CanvasTexture(o);t.anisotropy=4;t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping;
+        pmat.map=t;pmat.needsUpdate=true;pm.visible=true;api.current.printXf({s:1,ox:0,oy:0});
+      },
+      printXf:p=>{const t=pmat.map;if(!t)return;t.repeat.set(1/p.s,1/p.s);t.offset.set(0.5-0.5/p.s-p.ox,0.5-0.5/p.s-p.oy);},
+      printOff:()=>{pm.visible=false;if(pmat.map){pmat.map.dispose();pmat.map=null;pmat.needsUpdate=true;}}
+    };
+    return()=>{cancelAnimationFrame(raf);ro.disconnect();controls.dispose();renderer.dispose();el.removeChild(cv);};
+  },[]);
+
+  const cur=decals.find(d=>d.id===sel);
+  const pickColor=c=>{setColor(c);api.current.setColor(c);};
+  const pickType=t=>{setType(t);api.current.setType(t);};
+  const addItem=(kind,val)=>{const d=api.current.add(kind,val,tcolor);setDecals(a=>[...a,d]);setSel(d.id);};
+  const addImage=f=>{
+    const fr=new FileReader();
+    fr.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{const d=api.current.add('image',img,tcolor);setDecals(a=>[...a,d]);setSel(d.id);};
+      img.src=fr.result;
+    };
+    fr.readAsDataURL(f);
+  };
+  const addPrint=f=>{
+    const fr=new FileReader();
+    fr.onload=()=>{const img=new Image();img.onload=()=>{api.current.print(img);setPrint({on:true,s:1,ox:0,oy:0});};img.src=fr.result;};
+    fr.readAsDataURL(f);
+  };
+  const updPrint=v=>{const p={...print,...v};setPrint(p);api.current.printXf(p);};
+  const removePrint=()=>{api.current.printOff();setPrint({on:false,s:1,ox:0,oy:0});};
+  const upd=(v)=>{api.current.update(sel,v);setDecals(a=>a.map(d=>d.id===sel?{...d,...v}:d));};
+  const del=()=>{api.current.remove(sel);setDecals(a=>a.filter(d=>d.id!==sel));setSel(null);};
+
+  return h(React.Fragment,null,
+    h('header',null,h('h1',null,h('span',{className:'dot'}),'SAAR'),h('p',null,'Mouthguards · Configurador 3D')),
+    h('div',{className:'stage',ref:host},h('div',{className:'hint'},'Arrastra para girar · pellizca para acercar · arrastra un diseño para moverlo por el bucal')),
+    h('div',{className:'views'},
+      [['Frontal',0],['Izq.',-1.5708],['Trasera',3.1416],['Der.',1.5708]].map(v=>h('button',{key:v[0],onClick:()=>api.current.view(v[1])},v[0])),
+      h('button',{className:auto?'on':'',onClick:()=>{const b=!auto;setAuto(b);api.current.auto(b);}},'Auto-rotar '+(auto?'ON':'OFF')),
+      h('button',{onClick:()=>api.current.zoom(0.85)},'Zoom +'),
+      h('button',{onClick:()=>api.current.zoom(1.18)},'Zoom −'),
+      h('button',{onClick:()=>api.current.reset()},'Reset')),
+    h('div',{className:'panel'},
+      h('div',{className:'tabs'},['Color','Estilo','Texto','Gráficos'].map(t=>h('button',{key:t,className:tab===t?'on':'',onClick:()=>setTab(t)},t))),
+      tab==='Estilo'&&h('div',{className:'row'},h('div',{className:'lbl'},'Modelo'),
+        h('div',{className:'seg'},
+          h('button',{className:type==='boxeo'?'on':'',onClick:()=>pickType('boxeo')},'Boxeo'),
+          h('button',{className:type==='mma'?'on':'',onClick:()=>pickType('mma')},'MMA (más grueso)'))),
+      tab==='Color'&&h('div',{className:'row'},h('div',{className:'lbl'},'Color del bucal'),
+        h('div',{className:'sw'},COLORS.map(c=>h('button',{key:c,className:'c'+(color===c?' on':''),style:{background:c},'aria-label':c,onClick:()=>pickColor(c)})),
+          h('input',{type:'color',value:color,onChange:e=>pickColor(e.target.value),style:{width:34,height:34,border:'none',background:'none',padding:0}}))),
+      tab==='Gráficos'&&h('div',{className:'row'},h('div',{className:'lbl'},'Agregar ícono'),
+        h('div',{className:'ic'},ICONS.map(i=>h('button',{key:i,onClick:()=>addItem('icon',i)},i)))),
+      tab==='Texto'&&h('div',{className:'row'},h('div',{className:'lbl'},'Agregar texto'),
+        h('div',{className:'txt'},
+          h('input',{type:'text',maxLength:14,placeholder:'Tu apodo',value:text,onChange:e=>setText(e.target.value)}),
+          h('input',{type:'color',value:tcolor,onChange:e=>setTcolor(e.target.value)}),
+          h('button',{className:'btn',onClick:()=>{if(text.trim()){addItem('text',text.trim());setText('');}}},'Añadir'))),
+      tab==='Gráficos'&&h('div',{className:'row'},h('div',{className:'lbl'},'Impresión frontal'),
+        h('label',{className:'btn ghost',style:{display:'inline-block'}},print.on?'Cambiar diseño':'Subir diseño',
+          h('input',{type:'file',accept:'image/*',style:{display:'none'},onChange:e=>{const f=e.target.files[0];if(f)addPrint(f);e.target.value='';}})),
+        h('div',{style:{fontSize:12,color:'var(--muted)',marginTop:6}},'Se proyecta en el frente como una impresión real. Funciona con fondo blanco o transparente.'),
+        print.on&&h('div',{style:{marginTop:8}},
+          h('label',{className:'s'},h('span',null,'Tamaño'),h('input',{type:'range',min:0.5,max:1.6,step:0.01,value:print.s,onChange:e=>updPrint({s:+e.target.value})})),
+          h('label',{className:'s'},h('span',null,'Pos. X'),h('input',{type:'range',min:-0.5,max:0.5,step:0.01,value:print.ox,onChange:e=>updPrint({ox:+e.target.value})})),
+          h('label',{className:'s'},h('span',null,'Pos. Y'),h('input',{type:'range',min:-0.5,max:0.5,step:0.01,value:print.oy,onChange:e=>updPrint({oy:+e.target.value})})),
+          h('button',{className:'btn ghost',onClick:removePrint},'Quitar'))),
+      tab==='Gráficos'&&h('div',{className:'row'},h('div',{className:'lbl'},'Subir imagen o logo'),
+        h('label',{className:'btn ghost',style:{display:'inline-block'}},'Elegir imagen',
+          h('input',{type:'file',accept:'image/*',style:{display:'none'},onChange:e=>{const f=e.target.files[0];if(f)addImage(f);e.target.value='';}})),
+        h('div',{style:{fontSize:12,color:'var(--muted)',marginTop:6}},'Los PNG con fondo transparente se ven mejor.')),
+      (tab==='Texto'||tab==='Gráficos')&&decals.length>0&&h('div',{className:'row'},h('div',{className:'lbl'},'Tus diseños'),
+        h('div',{className:'chips'},decals.map(d=>h('button',{key:d.id,className:'chip'+(sel===d.id?' on':''),onClick:()=>setSel(d.id)},d.label))),
+        cur&&h('div',null,
+          h('label',{className:'s'},h('span',null,'Tamaño'),h('input',{type:'range',min:0.2,max:1.4,step:0.01,value:cur.size,onChange:e=>upd({size:+e.target.value})})),
+          h('label',{className:'s'},h('span',null,'Rotar'),h('input',{type:'range',min:-3.14,max:3.14,step:0.02,value:cur.spin,onChange:e=>upd({spin:+e.target.value})})),
+          h('button',{className:'btn ghost',onClick:del},'Eliminar'))),
+      null));
+}
+ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>
